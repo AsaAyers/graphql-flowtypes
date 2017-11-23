@@ -1,0 +1,27 @@
+{
+  "name": "graphql-flowtypes",
+  "version": "1.0.0",
+  "description": "Convert all types in a .graphql file into Flow types",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "ava"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AsaAyers/graphql-flowtypes.git"
+  },
+  "author": "Asa Ayers <Asa@AsaAyers.com>",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/AsaAyers/graphql-flowtypes/issues"
+  },
+  "homepage": "https://github.com/AsaAyers/graphql-flowtypes#readme",
+  "dependencies": {
+    "@babel/generator": "^7.0.0-beta.32",
+    "@babel/template": "^7.0.0-beta.32",
+    "@babel/types": "^7.0.0-beta.32",
+    "ava": "^0.23.0",
+    "babylon": "^6.18.0",
+    "graphql": "^0.11.7"
+  }
+}
