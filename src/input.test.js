@@ -2,6 +2,7 @@
 /* eslint-env jest */
 import fs from 'fs'
 import path from 'path'
+import * as babylon from 'babylon'
 import generate from '@babel/generator'
 import * as t from '@babel/types'
 import template from '@babel/template'
@@ -53,13 +54,10 @@ const testMacro = (basename) => async () => {
 
   let body
   try {
-    body = template.ast(flow, parserConfig)
+    body = babylon.parse(flow, parserConfig).program.body
   } catch (e) {
     e.message = `Test setup failure: Error parsing fixtures/${basename}.js\n  ${e.message}`
     throw e
-  }
-  if (!Array.isArray(body)) {
-    body = [ body ]
   }
 
   const expected = stripLocation(

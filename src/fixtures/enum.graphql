@@ -1,0 +1,12 @@
+
+# Collaborators affiliation level with a repository.
+enum CollaboratorAffiliation {
+  # All collaborators the authenticated user can see.
+  ALL
+
+  # All collaborators with permissions to an organization-owned repository, regardless of organization membership status.
+  DIRECT
+
+  # All outside collaborators of an organization-owned repository.
+  OUTSIDE
+}

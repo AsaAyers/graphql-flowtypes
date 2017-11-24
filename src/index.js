@@ -1,6 +1,5 @@
 // @flow
 
-import generate from '@babel/generator'
 import * as t from '@babel/types'
 import type {
   ASTNode as GQLNode
@@ -60,6 +59,8 @@ export function transform (schemaText: string): * {
     return replacement
   }
 
+  // @TODO: My wrapper already hijacks the return of these functions to produce
+  // Babel types. Maybe I should drop the `Node: { leave() {} }` too.
   const visitors = {
     Document: {
       leave (node) {
@@ -164,6 +165,25 @@ export function transform (schemaText: string): * {
         return t.opaqueType(id, null, null, impltype)
       }
     },
+    EnumValueDefinition: {
+      leave (node) {
+        const newNode = t.stringLiteralTypeAnnotation()
+        // I don't understand why this isn't a parameter
+        newNode.value = node.name.value
+        return newNode
+      }
+    },
+    EnumTypeDefinition: {
+      leave (node) {
+        const id = t.identifier(node.name.value)
+        const typeParameters = null
+        const types = node.values.map(get)
+
+        const right = t.unionTypeAnnotation(types)
+
+        return t.typeAlias(id, typeParameters, right)
+      }
+    },
     InterfaceTypeDefinition: {
       leave (node) {
         const id = t.identifier(node.name.value)
@@ -202,8 +222,5 @@ export function transform (schemaText: string): * {
 
   visit(graphqlAst, mapToNewTree(map, visitors))
 
-  const ast = get(graphqlAst)
-  const source = generate(ast, {}, '').code
-
-  return ast
+  return get(graphqlAst)
 }
