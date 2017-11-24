@@ -127,6 +127,23 @@ export function transform (schemaText: string): * {
         return this.InputObjectTypeDefinition.leave(args)
       }
     },
+    InterfaceTypeDefinition: {
+      leave ({ get, node }) {
+        const id = t.identifier(node.name.value)
+        const typeParameters = null
+
+        const properties = node.fields.map(get)
+        const indexers = []
+        const callProperties = []
+        const body = t.objectTypeAnnotation(properties, indexers, callProperties)
+        body.exact = false
+
+        const tmp = t.interfaceDeclaration(id, typeParameters, [], body)
+        tmp.mixins = []
+
+        return tmp
+      }
+    },
     InputObjectTypeDefinition: {
       leave ({ get, node }) {
         const id = t.identifier(node.name.value)
