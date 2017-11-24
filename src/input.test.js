@@ -126,3 +126,13 @@ test('will convert an `interface`', testMacro({
     }
   `
 }))
+
+test('scalar (opaque type)', testMacro({
+  graphql: `
+    # An RFC 3986, RFC 3987, and RFC 6570 (level 4) compliant URI string.
+    scalar URI
+  `,
+  flow: `
+    opaque type URI = any
+  `
+}))

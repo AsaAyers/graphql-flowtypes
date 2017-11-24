@@ -128,6 +128,21 @@ export function transform (schemaText: string): * {
         return this.InputObjectTypeDefinition.leave(...args)
       }
     },
+    ScalarTypeDefinition: {
+      leave (node) {
+        const id = t.identifier(node.name.value)
+
+        // http://graphql.org/learn/schema/#scalar-types
+        // > `scalar Date`
+        // > it's up to our implementation to define how that type should be
+        // > serialized
+        //
+        // I think the best thing I can do here is make it `any`. Maybe a future
+        // version will require passing types for scalar values.
+        const impltype = t.anyTypeAnnotation()
+        return t.opaqueType(id, null, null, impltype)
+      }
+    },
     InterfaceTypeDefinition: {
       leave (node) {
         const id = t.identifier(node.name.value)
