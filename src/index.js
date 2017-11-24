@@ -11,18 +11,11 @@ import {
 } from 'graphql'
 
 const mapToNewTree = (map, visitor) => {
-  const get = (graphqlNode) => {
-    const replacement = map.get(graphqlNode)
-    if (!replacement) {
-      throw new Error(`replacement not found for ${graphqlNode.kind}`)
-    }
-    return replacement
-  }
   function replaceNode (node, key, parent, path, ancestors, leaving) {
     var visitFn = getVisitFn(visitor, node.kind, leaving)
     if (visitFn) {
       try {
-        const newNode = visitFn.call(visitor, { node, key, parent, path, ancestors, get })
+        const newNode = visitFn.call(visitor, node, key, parent, path, ancestors)
         if (newNode != null) {
           map.set(node, newNode)
         }
@@ -57,10 +50,18 @@ function smartIdentifier (node) {
 export function transform (schemaText: string): * {
   const graphqlAst = parse(schemaText)
   type BabelNode = mixed
+  const map: WeakMap<GQLNode, BabelNode> = new WeakMap()
+  const get = (graphqlNode) => {
+    const replacement = map.get(graphqlNode)
+    if (!replacement) {
+      throw new Error(`replacement not found for ${graphqlNode.kind}`)
+    }
+    return replacement
+  }
 
   const visitors = {
     Document: {
-      leave ({ get, node }) {
+      leave (node) {
         const body = node.definitions.map(get)
         const directives = []
 
@@ -70,7 +71,7 @@ export function transform (schemaText: string): * {
       }
     },
     NamedType: {
-      leave ({ get, node, key, parent }) {
+      leave (node, key, parent) {
         let identifier = smartIdentifier(node.name)
 
         if (parent.kind !== 'NonNullType') {
@@ -80,12 +81,12 @@ export function transform (schemaText: string): * {
       }
     },
     NonNullType: {
-      leave ({ get, node }) {
+      leave (node) {
         return get(node.type)
       }
     },
     InputValueDefinition: {
-      leave ({ get, node, parent }) {
+      leave (node, parent) {
         const key = t.identifier(node.name.value)
 
         const value = get(node.type)
@@ -101,7 +102,7 @@ export function transform (schemaText: string): * {
       }
     },
     FieldDefinition: {
-      leave ({ get, node, parent }) {
+      leave (node, parent) {
         let id = smartIdentifier(node.name)
         let value = get(node.type)
 
@@ -123,12 +124,12 @@ export function transform (schemaText: string): * {
       }
     },
     ObjectTypeDefinition: {
-      leave (args) {
-        return this.InputObjectTypeDefinition.leave(args)
+      leave (...args) {
+        return this.InputObjectTypeDefinition.leave(...args)
       }
     },
     InterfaceTypeDefinition: {
-      leave ({ get, node }) {
+      leave (node) {
         const id = t.identifier(node.name.value)
         const typeParameters = null
 
@@ -145,7 +146,7 @@ export function transform (schemaText: string): * {
       }
     },
     InputObjectTypeDefinition: {
-      leave ({ get, node }) {
+      leave (node) {
         const id = t.identifier(node.name.value)
         const typeParameters = null
 
@@ -161,8 +162,7 @@ export function transform (schemaText: string): * {
     }
   }
 
-  const map: WeakMap<GQLNode, BabelNode> = new WeakMap()
   visit(graphqlAst, mapToNewTree(map, visitors))
 
-  return map.get(graphqlAst)
+  return get(graphqlAst)
 }
