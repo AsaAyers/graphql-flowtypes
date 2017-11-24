@@ -11,13 +11,24 @@ import {
 } from 'graphql'
 
 const mapToNewTree = (map, visitor) => {
-  const get = map.get.bind(map)
+  const get = (graphqlNode) => {
+    const replacement = map.get(graphqlNode)
+    if (!replacement) {
+      throw new Error(`replacement not found for ${graphqlNode.kind}`)
+    }
+    return replacement
+  }
   function replaceNode (node, key, parent, path, ancestors, leaving) {
     var visitFn = getVisitFn(visitor, node.kind, leaving)
     if (visitFn) {
-      const newNode = visitFn.call(visitor, { node, key, parent, path, ancestors, get })
-      if (newNode != null) {
-        map.set(node, newNode)
+      try {
+        const newNode = visitFn.call(visitor, { node, key, parent, path, ancestors, get })
+        if (newNode != null) {
+          map.set(node, newNode)
+        }
+      } catch (e) {
+        e.message = `Error replacing node \n  kind: ${node.kind}\n  at: ${path}\n  ${e.message}`
+        throw e
       }
     }
   }
@@ -30,6 +41,17 @@ const mapToNewTree = (map, visitor) => {
       replaceNode(node, key, parent, path, ancestors, true)
     }
   }
+}
+
+function smartIdentifier (node) {
+  const { value } = node
+
+  let identifier = t.identifier(value)
+  if (value === 'String' || value === 'ID') {
+    identifier = t.stringTypeAnnotation()
+  }
+
+  return identifier
 }
 
 export function transform (schemaText: string): * {
@@ -49,17 +71,11 @@ export function transform (schemaText: string): * {
     },
     NamedType: {
       leave ({ get, node, key, parent }) {
-        const { value } = node.name
-
-        let identifier = t.identifier(node.name.value)
-        if (value === 'String' || value === 'ID') {
-          identifier = t.stringTypeAnnotation()
-        }
+        let identifier = smartIdentifier(node.name)
 
         if (parent.kind !== 'NonNullType') {
           identifier = t.nullableTypeAnnotation(identifier)
         }
-
         return identifier
       }
     },
@@ -82,6 +98,33 @@ export function transform (schemaText: string): * {
         otp.variance = null
 
         return otp
+      }
+    },
+    FieldDefinition: {
+      leave ({ get, node, parent }) {
+        let id = smartIdentifier(node.name)
+        let value = get(node.type)
+
+        if (value.type === 'Identifier') {
+          value = t.genericTypeAnnotation(value)
+        }
+
+        // console.log(value, node)
+        const otp = (
+          t.objectTypeProperty(id, value)
+        )
+        otp.kind = 'init'
+        otp.optional = (node.type.kind !== 'NonNullType')
+
+        otp.static = false
+        otp.variance = null
+
+        return otp
+      }
+    },
+    ObjectTypeDefinition: {
+      leave (args) {
+        return this.InputObjectTypeDefinition.leave(args)
       }
     },
     InputObjectTypeDefinition: {
