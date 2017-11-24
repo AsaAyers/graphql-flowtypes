@@ -1,5 +1,6 @@
 // @flow
 /* eslint-env jest */
+import generate from '@babel/generator'
 import * as t from '@babel/types'
 import template from '@babel/template'
 import { transform } from '.'
@@ -48,8 +49,12 @@ const testMacro = ({ graphql, flow }) => async () => {
   const expected = stripLocation(
     t.program(body, [], 'module')
   )
+  const actualSource = generate(actual, {}, '').code
+  const expectedSource = generate(expected, {}, '').code
 
-  expect(actual).toEqual(expected)
+  // the AST may have some differences, but what matters is that it generates
+  // the correct source.
+  expect(actualSource).toEqual(expectedSource)
 }
 
 test('will convert a simple `input` containing only scalar types', testMacro({
@@ -134,5 +139,44 @@ test('scalar (opaque type)', testMacro({
   `,
   flow: `
     opaque type URI = any
+  `
+}))
+
+test('type A implements B', testMacro({
+  graphql: `
+    # An object with an ID.
+    interface Node {
+      # ID of the object.
+      id: ID!
+    }
+
+    # Represents an 'assigned' event on any assignable object.
+    type AssignedEvent implements Node {
+      # Identifies the actor who performed the event.
+      actor: Actor
+
+      # Identifies the assignable associated with the event.
+      assignable: Assignable!
+
+      # Identifies the date and time when the object was created.
+      createdAt: DateTime!
+      id: ID!
+
+      # Identifies the user who was assigned.
+      user: User
+    }
+  `,
+  flow: `
+    interface Node {
+      id: string,
+    }
+
+    interface AssignedEvent extends Node {
+      actor?: ?Actor,
+      assignable: Assignable,
+      createdAt: DateTime,
+      id: string,
+      user?: ?User,
+    }
   `
 }))

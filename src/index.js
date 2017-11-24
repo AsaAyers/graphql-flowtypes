@@ -1,5 +1,6 @@
 // @flow
 
+import generate from '@babel/generator'
 import * as t from '@babel/types'
 import type {
   ASTNode as GQLNode
@@ -110,7 +111,6 @@ export function transform (schemaText: string): * {
           value = t.genericTypeAnnotation(value)
         }
 
-        // console.log(value, node)
         const otp = (
           t.objectTypeProperty(id, value)
         )
@@ -124,8 +124,29 @@ export function transform (schemaText: string): * {
       }
     },
     ObjectTypeDefinition: {
-      leave (...args) {
-        return this.InputObjectTypeDefinition.leave(...args)
+      leave (node) {
+        // console.log(node)
+        const id = t.identifier(node.name.value)
+        const typeParameters = null
+
+        const properties = node.fields.map(get)
+        const indexers = []
+        const callProperties = []
+
+        const body = t.objectTypeAnnotation(properties, indexers, callProperties)
+
+        if (node.interfaces.length > 0) {
+          let interfaces = node.interfaces.map(n => {
+            return smartIdentifier(n.name)
+          })
+
+          const tmp = t.interfaceDeclaration(id, typeParameters, interfaces, body)
+          tmp.mixins = []
+          return tmp
+        }
+
+        body.exact = true
+        return t.typeAlias(id, typeParameters, body)
       }
     },
     ScalarTypeDefinition: {
@@ -154,7 +175,9 @@ export function transform (schemaText: string): * {
         const body = t.objectTypeAnnotation(properties, indexers, callProperties)
         body.exact = false
 
-        const tmp = t.interfaceDeclaration(id, typeParameters, [], body)
+        let interfaces = []
+
+        const tmp = t.interfaceDeclaration(id, typeParameters, interfaces, body)
         tmp.mixins = []
 
         return tmp
@@ -179,5 +202,8 @@ export function transform (schemaText: string): * {
 
   visit(graphqlAst, mapToNewTree(map, visitors))
 
-  return get(graphqlAst)
+  const ast = get(graphqlAst)
+  const source = generate(ast, {}, '').code
+
+  return ast
 }
