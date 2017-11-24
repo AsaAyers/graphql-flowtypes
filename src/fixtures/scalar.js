@@ -1,0 +1,1 @@
+opaque type URI = any

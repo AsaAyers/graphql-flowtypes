@@ -1,0 +1,17 @@
+# Represents an object which can take actions on GitHub. Typically a User or Bot.
+interface Actor {
+  # A URL pointing to the actor's public avatar.
+  avatarUrl(
+    # The size of the resulting square image.
+    size: Int
+  ): URI!
+
+  # The username of the actor.
+  login: String!
+
+  # The HTTP path for this actor.
+  resourcePath: URI!
+
+  # The HTTP URL for this actor.
+  url: URI!
+}
