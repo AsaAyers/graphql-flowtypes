@@ -6,46 +6,35 @@ import type {
 } from 'graphql'
 import {
   parse,
-  visit,
-  getVisitFn
+  visit
 } from 'graphql'
 
 const mapToNewTree = (getSource, map, visitor) => {
-  function replaceNode (node, key, parent, path, ancestors, leaving) {
-    var visitFn = getVisitFn(visitor, node.kind, leaving)
-    if (visitFn) {
-      try {
-        const newNode = visitFn.call(visitor, node, key, parent, path, ancestors)
-        if (newNode != null) {
-          map.set(node, newNode)
+  return {
+    leave (node, key, parent, path, ancestors) {
+      let visitFn = visitor[node.kind]
+      // A string value will forward to the visitor for that kind.
+      //
+      // InputValueDefinition: 'FieldDefinition',
+      // FieldDefinition (node, parent) {
+      if (typeof visitFn === 'string') {
+        visitFn = visitor[visitFn]
+      }
+
+      if (visitFn) {
+        try {
+          const newNode = visitFn.call(visitor, node, key, parent, path, ancestors)
+          if (newNode != null) {
+            map.set(node, newNode)
+          }
+        } catch (e) {
+          const src = getSource(node)
+          e.message = `Error replacing node: \n${node.kind}${src}\n\n  (original error)${e.message}`
+          throw e
         }
-      } catch (e) {
-        const src = getSource(node)
-        e.message = `Error replacing node: \n${node.kind}${src}\n\n  (original error)${e.message}`
-        throw e
       }
     }
   }
-
-  return {
-    enter (node, key, parent, path, ancestors) {
-      replaceNode(node, key, parent, path, ancestors, false)
-    },
-    leave (node, key, parent, path, ancestors) {
-      replaceNode(node, key, parent, path, ancestors, true)
-    }
-  }
-}
-
-function smartIdentifier (node) {
-  const { value } = node
-
-  let identifier = t.identifier(value)
-  if (value === 'String' || value === 'ID') {
-    identifier = t.stringTypeAnnotation()
-  }
-
-  return identifier
 }
 
 export function transform (schemaText: string): * {
@@ -70,184 +59,147 @@ export function transform (schemaText: string): * {
     return replacement
   }
 
-  // @TODO: My wrapper already hijacks the return of these functions to produce
-  // Babel types. Maybe I should drop the `Node: { leave() {} }` too.
   const visitors = {
-    Document: {
-      leave (node) {
-        const body = node.definitions.map(get)
-        const directives = []
+    Document (node) {
+      const body = node.definitions.map(get)
+      const directives = []
 
-        return t.program(
-          body, directives, 'module'
+      return t.program(
+        body, directives, 'module'
+      )
+    },
+    Name (node) {
+      const { value } = node
+
+      let identifier = t.identifier(value)
+      if (value === 'String' || value === 'ID') {
+        identifier = t.stringTypeAnnotation()
+      }
+
+      return identifier
+    },
+    NamedType (node, key, parent) {
+      // NamedType doesn't need its own Babel node. It just fowards the type for
+      // `.name`
+      return get(node.name)
+    },
+    ListType (node, key, parent) {
+      let listType = get(node.type)
+      if (t.isIdentifier(listType)) {
+        listType = t.nullableTypeAnnotation(listType)
+      }
+
+      let newNode = t.genericTypeAnnotation(
+        t.identifier('Array'), t.typeParameterInstantiation(
+          [ listType ]
         )
+      )
+
+      return newNode
+    },
+    NonNullType (node) {
+      return t.genericTypeAnnotation(
+        get(node.type)
+      )
+    },
+    InputValueDefinition: 'FieldDefinition',
+    FieldDefinition (node, parent) {
+      const optional = (node.type.kind !== 'NonNullType')
+
+      let id = get(node.name)
+      let value = get(node.type)
+
+      if (optional) {
+        value = t.nullableTypeAnnotation(value)
+      }
+
+      return {
+        ...t.objectTypeProperty(id, value),
+        optional
       }
     },
-    NamedType: {
-      leave (node, key, parent) {
-        return smartIdentifier(node.name)
-      }
+    ScalarTypeDefinition (node) {
+      const id = t.identifier(node.name.value)
+
+      // http://graphql.org/learn/schema/#scalar-types
+      // > `scalar Date`
+      // > it's up to our implementation to define how that type should be
+      // > serialized
+      //
+      // I think the best thing I can do here is make it `any`. Maybe a future
+      // version will require passing types for scalar values.
+      const impltype = t.anyTypeAnnotation()
+      return t.opaqueType(id, null, null, impltype)
     },
-    ListType: {
-      leave (node, key, parent) {
-        let listType = get(node.type)
-        if (t.isIdentifier(listType)) {
-          listType = t.nullableTypeAnnotation(listType)
-        }
-
-        let newNode = t.genericTypeAnnotation(
-          t.identifier('Array'), t.typeParameterInstantiation(
-            [ listType ]
-          )
-        )
-
-        return newNode
-      }
+    EnumValueDefinition (node) {
+      const newNode = t.stringLiteralTypeAnnotation()
+      // I don't understand why this isn't a parameter
+      newNode.value = node.name.value
+      return newNode
     },
-    NonNullType: {
-      leave (node) {
-        return t.genericTypeAnnotation(
-          get(node.type)
-        )
+    EnumTypeDefinition: 'commonUnionType',
+    UnionTypeDefinition: 'commonUnionType',
+    commonUnionType (node) {
+      let childKey = 'types'
+      if (node.kind === 'EnumTypeDefinition') {
+        childKey = 'values'
       }
+      const types = node[childKey].map(get)
+
+      const id = t.identifier(node.name.value)
+      const typeParameters = null
+
+      return t.typeAlias(
+        id,
+        typeParameters,
+        t.unionTypeAnnotation(types)
+      )
     },
-    InputValueDefinition: {
-      leave (node, parent) {
-        return this.FieldDefinition.leave(node, parent)
-      }
+    objectTypeHelper (fields) {
+      const properties = fields.map(get)
+      const indexers = []
+      const callProperties = []
+      return t.objectTypeAnnotation(properties, indexers, callProperties)
     },
-    FieldDefinition: {
-      leave (node, parent) {
-        const optional = (node.type.kind !== 'NonNullType')
+    ObjectTypeDefinition (node) {
+      const id = t.identifier(node.name.value)
+      const typeParameters = null
 
-        let id = smartIdentifier(node.name)
-        let value = get(node.type)
+      const body = this.objectTypeHelper(node.fields)
 
-        if (optional) {
-          value = t.nullableTypeAnnotation(value)
-        }
+      if (node.interfaces.length > 0) {
+        let interfaces = node.interfaces.map(n => {
+          return get(n.name)
+        })
 
-        return {
-          ...t.objectTypeProperty(id, value),
-          kind: 'init',
-          optional,
-          static: false,
-          variance: null
-        }
-        // const otp = (
-        // )
-        // otp.kind = 'init'
-        // otp.optional = (node.type.kind !== 'NonNullType')
-        //
-        // otp.static = false
-        // otp.variance = null
-        //
-        // return otp
+        return t.interfaceDeclaration(id, typeParameters, interfaces, body)
       }
+
+      return t.typeAlias(id, typeParameters, {
+        ...body,
+        exact: true
+      })
     },
-    ObjectTypeDefinition: {
-      leave (node) {
-        const id = t.identifier(node.name.value)
-        const typeParameters = null
+    InterfaceTypeDefinition (node) {
+      const id = t.identifier(node.name.value)
+      const typeParameters = null
 
-        const properties = node.fields.map(get)
-        const indexers = []
-        const callProperties = []
+      const body = this.objectTypeHelper(node.fields)
 
-        const body = t.objectTypeAnnotation(properties, indexers, callProperties)
+      let interfaces = []
 
-        if (node.interfaces.length > 0) {
-          let interfaces = node.interfaces.map(n => {
-            return smartIdentifier(n.name)
-          })
-
-          const tmp = t.interfaceDeclaration(id, typeParameters, interfaces, body)
-          tmp.mixins = []
-          return tmp
-        }
-
-        body.exact = true
-        return t.typeAlias(id, typeParameters, body)
-      }
+      return t.interfaceDeclaration(id, typeParameters, interfaces, body)
     },
-    ScalarTypeDefinition: {
-      leave (node) {
-        const id = t.identifier(node.name.value)
+    InputObjectTypeDefinition (node) {
+      const id = t.identifier(node.name.value)
+      const typeParameters = null
 
-        // http://graphql.org/learn/schema/#scalar-types
-        // > `scalar Date`
-        // > it's up to our implementation to define how that type should be
-        // > serialized
-        //
-        // I think the best thing I can do here is make it `any`. Maybe a future
-        // version will require passing types for scalar values.
-        const impltype = t.anyTypeAnnotation()
-        return t.opaqueType(id, null, null, impltype)
+      const right = {
+        ...this.objectTypeHelper(node.fields),
+        exact: true
       }
-    },
-    EnumValueDefinition: {
-      leave (node) {
-        const newNode = t.stringLiteralTypeAnnotation()
-        // I don't understand why this isn't a parameter
-        newNode.value = node.name.value
-        return newNode
-      }
-    },
-    EnumTypeDefinition: {
-      leave (node) {
-        const id = t.identifier(node.name.value)
-        const typeParameters = null
-        const types = node.values.map(get)
 
-        const right = t.unionTypeAnnotation(types)
-
-        return t.typeAlias(id, typeParameters, right)
-      }
-    },
-    UnionTypeDefinition: {
-      leave (node) {
-        const id = t.identifier(node.name.value)
-        const typeParameters = null
-        const types = node.types.map(get)
-
-        const right = t.unionTypeAnnotation(types)
-
-        return t.typeAlias(id, typeParameters, right)
-      }
-    },
-    InterfaceTypeDefinition: {
-      leave (node) {
-        const id = t.identifier(node.name.value)
-        const typeParameters = null
-
-        const properties = node.fields.map(get)
-        const indexers = []
-        const callProperties = []
-        const body = t.objectTypeAnnotation(properties, indexers, callProperties)
-        body.exact = false
-
-        let interfaces = []
-
-        const tmp = t.interfaceDeclaration(id, typeParameters, interfaces, body)
-        tmp.mixins = []
-
-        return tmp
-      }
-    },
-    InputObjectTypeDefinition: {
-      leave (node) {
-        const id = t.identifier(node.name.value)
-        const typeParameters = null
-
-        const properties = node.fields.map(get)
-        const indexers = []
-        const callProperties = []
-
-        const right = t.objectTypeAnnotation(properties, indexers, callProperties)
-        right.exact = true
-
-        return t.typeAlias(id, typeParameters, right)
-      }
+      return t.typeAlias(id, typeParameters, right)
     }
   }
 

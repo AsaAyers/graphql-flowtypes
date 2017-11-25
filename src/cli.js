@@ -11,7 +11,7 @@ function run (filename) {
   const graphql = fs.readFileSync(filename, 'UTF8')
   const ast = transform(graphql)
 
-  console.log(generate(ast, {}, ''))
+  console.log(generate(ast, {}, '').code)
 }
 
 run(...process.argv.slice(2))
