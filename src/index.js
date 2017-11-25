@@ -69,15 +69,16 @@ export function transform (schemaText: string): * {
         body, directives, 'module'
       )
     },
-    Name (node) {
-      const { value } = node
-
-      let identifier = t.identifier(value)
-      if (value === 'String' || value === 'ID') {
-        identifier = t.stringTypeAnnotation()
+    Name ({ value }) {
+      switch (value) {
+        case 'String':
+        case 'ID':
+          return t.stringTypeAnnotation()
+        case 'Int':
+          return t.numberTypeAnnotation()
+        default:
+          return t.identifier(value)
       }
-
-      return identifier
     },
     NamedType (node, key, parent) {
       // NamedType doesn't need its own Babel node. It just fowards the type for

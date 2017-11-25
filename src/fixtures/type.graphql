@@ -19,6 +19,8 @@ type AssignedEvent implements Node {
   # Identifies the actor who performed the event.
   actor: Actor
 
+  number: Int!
+
   # Identifies the assignable associated with the event.
   assignable: Assignable!
 

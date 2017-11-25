@@ -11,7 +11,13 @@ function run (filename) {
   const graphql = fs.readFileSync(filename, 'UTF8')
   const ast = transform(graphql)
 
-  console.log(generate(ast, {}, '').code)
+  let { code } = generate(ast, {}, '')
+
+  code = `// @flow\n\n${code}`
+  fs.writeFileSync(
+    filename + '.js.flow',
+    code
+  )
 }
 
 run(...process.argv.slice(2))

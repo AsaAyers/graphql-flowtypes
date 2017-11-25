@@ -10,6 +10,7 @@ export interface Node {
 
 export interface AssignedEvent extends Node {
   actor?: ?Actor,
+  number: number,
   assignable: Assignable,
   createdAt: DateTime,
   id: string,
