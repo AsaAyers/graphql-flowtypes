@@ -5,7 +5,7 @@ import path from 'path'
 import * as babylon from 'babylon'
 import generate from '@babel/generator'
 import * as t from '@babel/types'
-import template from '@babel/template'
+import printAst from 'ast-pretty-print'
 import { transform } from '.'
 import traverse from '@babel/traverse'
 
@@ -65,6 +65,13 @@ const testMacro = (basename) => async () => {
   )
   const actualSource = generate(actual, {}, '').code
   const expectedSource = generate(expected, {}, '').code
+
+  if (actualSource !== expectedSource) {
+    const actualWithAST = actualSource + '\n\n/*\n' + printAst(actual) + '\n*/'
+    const expectedWithAST = expectedSource + '\n\n/*\n' + printAst(expected) + '\n*/'
+
+    expect(actualWithAST).toEqual(expectedWithAST)
+  }
 
   // the AST may have some differences, but what matters is that it generates
   // the correct source.

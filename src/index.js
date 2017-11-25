@@ -82,6 +82,23 @@ export function transform (schemaText: string): * {
         return identifier
       }
     },
+    ListType: {
+      leave (node, key, parent) {
+        console.log(node)
+        let identifier = t.identifier('Array')
+
+        identifier = t.genericTypeAnnotation(
+          identifier, t.typeParameterInstantiation([
+            get(node.type)
+          ])
+        )
+        if (parent.kind !== 'NonNullType') {
+          identifier = t.nullableTypeAnnotation(identifier)
+        }
+
+        return identifier
+      }
+    },
     NonNullType: {
       leave (node) {
         return get(node.type)
