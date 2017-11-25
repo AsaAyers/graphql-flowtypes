@@ -4,9 +4,9 @@ type AcceptTopicSuggestionPayload = {|
   topic: Topic,
 |}
 
-    interface Node {
-      id: string,
-    }
+interface Node {
+  id: string,
+}
 
 interface AssignedEvent extends Node {
   actor?: ?Actor,
@@ -15,3 +15,7 @@ interface AssignedEvent extends Node {
   id: string,
   user?: ?User,
 }
+
+type Blame = {|
+  ranges: Array<BlameRange>
+|}

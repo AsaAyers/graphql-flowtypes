@@ -74,29 +74,29 @@ export function transform (schemaText: string): * {
     },
     NamedType: {
       leave (node, key, parent) {
-        let identifier = smartIdentifier(node.name)
+        const typeAnnotation = smartIdentifier(node.name)
 
         if (parent.kind !== 'NonNullType') {
-          identifier = t.nullableTypeAnnotation(identifier)
+          return t.nullableTypeAnnotation(typeAnnotation)
         }
-        return identifier
+        return t.genericTypeAnnotation(typeAnnotation)
       }
     },
     ListType: {
       leave (node, key, parent) {
-        console.log(node)
-        let identifier = t.identifier('Array')
+        console.log(node, 'wat', get(node.type))
+        let listType = get(node.type)
 
-        identifier = t.genericTypeAnnotation(
-          identifier, t.typeParameterInstantiation([
-            get(node.type)
-          ])
+        let newNode = t.genericTypeAnnotation(
+          t.identifier('Array'), t.typeParameterInstantiation(
+            [ listType ]
+          )
         )
-        if (parent.kind !== 'NonNullType') {
-          identifier = t.nullableTypeAnnotation(identifier)
-        }
 
-        return identifier
+        if (parent.kind !== 'NonNullType') {
+          return t.nullableTypeAnnotation(newNode)
+        }
+        return newNode
       }
     },
     NonNullType: {

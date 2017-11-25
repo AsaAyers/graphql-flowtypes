@@ -29,3 +29,9 @@ type AssignedEvent implements Node {
   # Identifies the user who was assigned.
   user: User
 }
+
+# Represents a Git blame.
+type Blame {
+  # The list of ranges from a Git blame.
+  ranges: [BlameRange!]!
+}
