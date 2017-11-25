@@ -67,8 +67,9 @@ const testMacro = (basename) => async () => {
   const expectedSource = generate(expected, {}, '').code
 
   if (actualSource !== expectedSource) {
-    const actualWithAST = actualSource + '\n\n/*\n' + printAst(actual) + '\n*/'
-    const expectedWithAST = expectedSource + '\n\n/*\n' + printAst(expected) + '\n*/'
+    const separator = `\n\n// ***** AST *****\n\n`
+    const actualWithAST = actualSource + separator + printAst(actual)
+    const expectedWithAST = expectedSource + separator + printAst(expected)
 
     expect(actualWithAST).toEqual(expectedWithAST)
   }
@@ -82,6 +83,7 @@ const fixtures = path.join(__dirname, 'fixtures')
 fs.readdirSync(fixtures)
   .filter(f => path.extname(f) === '.graphql')
   .map(f => path.basename(f, '.graphql'))
+  // .filter(f => f === 'input-types')
   .map(basename => {
     test(basename, testMacro(basename))
   })

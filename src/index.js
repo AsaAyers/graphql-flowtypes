@@ -10,7 +10,7 @@ import {
   getVisitFn
 } from 'graphql'
 
-const mapToNewTree = (map, visitor) => {
+const mapToNewTree = (getSource, map, visitor) => {
   function replaceNode (node, key, parent, path, ancestors, leaving) {
     var visitFn = getVisitFn(visitor, node.kind, leaving)
     if (visitFn) {
@@ -20,7 +20,8 @@ const mapToNewTree = (map, visitor) => {
           map.set(node, newNode)
         }
       } catch (e) {
-        e.message = `Error replacing node \n  kind: ${node.kind}\n  at: ${path}\n  ${e.message}`
+        const src = getSource(node)
+        e.message = `Error replacing node: \n${node.kind}${src}\n\n  (original error)${e.message}`
         throw e
       }
     }
@@ -51,10 +52,20 @@ export function transform (schemaText: string): * {
   const graphqlAst = parse(schemaText)
   type BabelNode = mixed
   const map: WeakMap<GQLNode, BabelNode> = new WeakMap()
+  const getSource = (graphqlNode) => {
+    const { loc } = graphqlNode
+    return (loc != null
+      ? '\n\n  ' + schemaText.substr(loc.start, loc.end - loc.start)
+      : ''
+    )
+  }
+
   const get = (graphqlNode) => {
     const replacement = map.get(graphqlNode)
     if (!replacement) {
-      throw new Error(`replacement not found for ${graphqlNode.kind}`)
+      const src = getSource(graphqlNode)
+
+      throw new Error(`replacement not found for ${graphqlNode.kind}${src}`)
     }
     return replacement
   }
@@ -74,18 +85,15 @@ export function transform (schemaText: string): * {
     },
     NamedType: {
       leave (node, key, parent) {
-        const typeAnnotation = smartIdentifier(node.name)
-
-        if (parent.kind !== 'NonNullType') {
-          return t.nullableTypeAnnotation(typeAnnotation)
-        }
-        return t.genericTypeAnnotation(typeAnnotation)
+        return smartIdentifier(node.name)
       }
     },
     ListType: {
       leave (node, key, parent) {
-        console.log(node, 'wat', get(node.type))
         let listType = get(node.type)
+        if (t.isIdentifier(listType)) {
+          listType = t.nullableTypeAnnotation(listType)
+        }
 
         let newNode = t.genericTypeAnnotation(
           t.identifier('Array'), t.typeParameterInstantiation(
@@ -93,57 +101,52 @@ export function transform (schemaText: string): * {
           )
         )
 
-        if (parent.kind !== 'NonNullType') {
-          return t.nullableTypeAnnotation(newNode)
-        }
         return newNode
       }
     },
     NonNullType: {
       leave (node) {
-        return get(node.type)
+        return t.genericTypeAnnotation(
+          get(node.type)
+        )
       }
     },
     InputValueDefinition: {
       leave (node, parent) {
-        const key = t.identifier(node.name.value)
-
-        const value = get(node.type)
-
-        const otp = t.objectTypeProperty(key, value)
-        otp.kind = 'init'
-        otp.optional = (node.type.kind !== 'NonNullType')
-
-        otp.static = false
-        otp.variance = null
-
-        return otp
+        return this.FieldDefinition.leave(node, parent)
       }
     },
     FieldDefinition: {
       leave (node, parent) {
+        const optional = (node.type.kind !== 'NonNullType')
+
         let id = smartIdentifier(node.name)
         let value = get(node.type)
 
-        if (value.type === 'Identifier') {
-          value = t.genericTypeAnnotation(value)
+        if (optional) {
+          value = t.nullableTypeAnnotation(value)
         }
 
-        const otp = (
-          t.objectTypeProperty(id, value)
-        )
-        otp.kind = 'init'
-        otp.optional = (node.type.kind !== 'NonNullType')
-
-        otp.static = false
-        otp.variance = null
-
-        return otp
+        return {
+          ...t.objectTypeProperty(id, value),
+          kind: 'init',
+          optional,
+          static: false,
+          variance: null
+        }
+        // const otp = (
+        // )
+        // otp.kind = 'init'
+        // otp.optional = (node.type.kind !== 'NonNullType')
+        //
+        // otp.static = false
+        // otp.variance = null
+        //
+        // return otp
       }
     },
     ObjectTypeDefinition: {
       leave (node) {
-        // console.log(node)
         const id = t.identifier(node.name.value)
         const typeParameters = null
 
@@ -201,6 +204,17 @@ export function transform (schemaText: string): * {
         return t.typeAlias(id, typeParameters, right)
       }
     },
+    UnionTypeDefinition: {
+      leave (node) {
+        const id = t.identifier(node.name.value)
+        const typeParameters = null
+        const types = node.types.map(get)
+
+        const right = t.unionTypeAnnotation(types)
+
+        return t.typeAlias(id, typeParameters, right)
+      }
+    },
     InterfaceTypeDefinition: {
       leave (node) {
         const id = t.identifier(node.name.value)
@@ -237,7 +251,7 @@ export function transform (schemaText: string): * {
     }
   }
 
-  visit(graphqlAst, mapToNewTree(map, visitors))
+  visit(graphqlAst, mapToNewTree(getSource, map, visitors))
 
   return get(graphqlAst)
 }
