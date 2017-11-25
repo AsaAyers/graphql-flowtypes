@@ -1,14 +1,14 @@
 
-type AcceptTopicSuggestionPayload = {|
+export type AcceptTopicSuggestionPayload = {|
   clientMutationId?: ?string,
   topic: Topic,
 |}
 
-interface Node {
+export interface Node {
   id: string,
 }
 
-interface AssignedEvent extends Node {
+export interface AssignedEvent extends Node {
   actor?: ?Actor,
   assignable: Assignable,
   createdAt: DateTime,
@@ -16,6 +16,6 @@ interface AssignedEvent extends Node {
   user?: ?User,
 }
 
-type Blame = {|
+export type Blame = {|
   ranges: Array<BlameRange>
 |}

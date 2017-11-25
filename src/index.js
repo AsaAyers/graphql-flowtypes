@@ -61,7 +61,8 @@ export function transform (schemaText: string): * {
 
   const visitors = {
     Document (node) {
-      const body = node.definitions.map(get)
+      const body = node.definitions
+        .map(n => t.exportNamedDeclaration(get(n), []))
       const directives = []
 
       return t.program(

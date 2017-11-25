@@ -1,1 +1,1 @@
-opaque type URI = any
+export opaque type URI = any

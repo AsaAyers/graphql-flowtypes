@@ -1,1 +1,1 @@
-type IssueOrPullRequest = Issue | PullRequest
+export type IssueOrPullRequest = Issue | PullRequest

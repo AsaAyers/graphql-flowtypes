@@ -1,11 +1,11 @@
 
-type AcceptTopicSuggestionInput = {|
+export type AcceptTopicSuggestionInput = {|
   clientMutationId?: ?string,
   name: string,
   repositoryId: string,
 |}
 
-type AddPullRequestReviewInput = {|
+export type AddPullRequestReviewInput = {|
   body?: ?string,
   clientMutationId?: ?string,
   comments?: ?Array<?DraftPullRequestReviewComment>,

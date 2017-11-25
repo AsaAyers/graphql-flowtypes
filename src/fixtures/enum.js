@@ -1,4 +1,4 @@
-type CollaboratorAffiliation =
+export type CollaboratorAffiliation =
   | "ALL"
   | "DIRECT"
   | "OUTSIDE"

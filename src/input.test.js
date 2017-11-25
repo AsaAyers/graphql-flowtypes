@@ -10,6 +10,7 @@ import { transform } from '.'
 import traverse from '@babel/traverse'
 
 export const parserConfig = {
+  sourceType: 'module',
   plugins: [
     'jsx',
     'flow',
