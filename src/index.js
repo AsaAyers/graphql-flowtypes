@@ -69,16 +69,33 @@ export function transform (schemaText: string): * {
     return replacement
   }
 
+  const getName = (node) => (
+    node.kind === 'SchemaDefinition'
+      ? 'schema'
+      : node.name.value
+  )
   const visitor = {
     Document (node) {
       function buildTypeMap (map: *, node): Map<string, Object> {
-        map.set(node.name.value, node)
+        let name = getName(node)
+        if (node.kind === 'SchemaDefinition') {
+          name = 'schema'
+        } else {
+          name = node.name.value
+        }
+
+        if (name == null) {
+          const src = getSource(node)
+          throw new Error(`Error: unable to find name of:\n${src}\n${JSON.stringify(node)}`)
+        }
+
+        map.set(name, node)
         return map
       }
 
       const definitionMap: Map<string, Object> = node.definitions.reduce(buildTypeMap, new Map())
       const keysByDependency: Array<string> = node.definitions.reduce((memo, node) => {
-        const name = node.name.value
+        const name = getName(node)
         const references = referenceMap.get(node)
 
         if (Array.isArray(references)) {
@@ -150,6 +167,15 @@ export function transform (schemaText: string): * {
       return t.genericTypeAnnotation(
         get(node.type)
       )
+    },
+    OperationTypeDefinition (node) {
+      const id = t.identifier(node.operation)
+      const value = get(node.type)
+      const optional = false
+      return {
+        ...t.objectTypeProperty(id, value),
+        optional
+      }
     },
     InputValueDefinition: 'FieldDefinition',
     FieldDefinition (node) {
@@ -223,6 +249,15 @@ export function transform (schemaText: string): * {
       const callProperties = []
       return t.objectTypeAnnotation(properties, indexers, callProperties)
     },
+    SchemaDefinition (node) {
+      const id = t.identifier('schema')
+      const body = this.objectTypeHelper(node.operationTypes)
+
+      return t.typeAlias(id, null, {
+        ...body,
+        exact: true
+      })
+    },
     ObjectTypeDefinition (node) {
       const id = t.identifier(node.name.value)
       const typeParameters = null
@@ -272,8 +307,13 @@ export function transform (schemaText: string): * {
     visitor
   }))
 
+  let code
   const ast = get(graphqlAst)
-  const { code } = generate(ast)
+  try {
+    code = generate(ast).code
+  } catch (e) {
+    throw new Error(`Internal error: Generated AST is not valid:\n${JSON.stringify(ast, null, 2)}`)
+  }
 
   return {
     ast,
