@@ -41,6 +41,13 @@ const stripLocation = (ast) => {
   return ast
 }
 
+function gatherExports (node) {
+  return {
+    type: node.type,
+    name: node.declaration.id.name
+  }
+}
+
 const testMacro = (basename) => async () => {
   const graphql = fs.readFileSync(
     path.join(fixtures, basename + '.graphql')
@@ -64,14 +71,20 @@ const testMacro = (basename) => async () => {
   const expected = stripLocation(
     t.program(body, [], 'module')
   )
-  const actualSource = generate(actual, {}, '').code
-  const expectedSource = generate(expected, {}, '').code
+  const actualSource = generate(actual.ast).code
+  const expectedSource = generate(expected).code
 
   if (actualSource !== expectedSource) {
-    const separator = `\n\n// ***** AST *****\n\n`
-    const actualWithAST = actualSource + separator + printAst(actual)
-    const expectedWithAST = expectedSource + separator + printAst(expected)
+    // $FlowFixMe
+    const actualExports = actual.ast.body.map(gatherExports)
+    const expectedExports = expected.body.map(gatherExports)
+    // This will verify that the sort is working.
+    expect(actualExports).toEqual(expectedExports)
 
+    // Sometimes this is useful in debugging, but it's often too much noise
+    // const separator = `\n\n// ***** AST *****\n\n`
+    // const actualWithAST = actualSource + separator + printAst(actual.ast)
+    // const expectedWithAST = expectedSource + separator + printAst(expected)
     // expect(actualWithAST).toEqual(expectedWithAST)
   }
 

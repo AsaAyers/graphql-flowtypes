@@ -1,7 +1,6 @@
 // @flow
 import fs from 'fs'
 import { transform } from '.'
-import generate from '@babel/generator'
 
 function run (filename) {
   if (filename == null) {
@@ -9,15 +8,12 @@ function run (filename) {
   }
 
   const graphql = fs.readFileSync(filename, 'UTF8')
-  const ast = transform(graphql)
+  let { code } = transform(graphql)
 
-  let { code } = generate(ast, {}, '')
-
+  const flowFile = filename + '.js.flow'
   code = `// @flow\n\n${code}\n`
-  fs.writeFileSync(
-    filename + '.js.flow',
-    code
-  )
+  console.log(`writing ${flowFile}`)
+  fs.writeFileSync(flowFile, code)
 }
 
 run(...process.argv.slice(2))

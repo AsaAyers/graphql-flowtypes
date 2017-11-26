@@ -1,6 +1,7 @@
 // @flow
 
 import * as t from '@babel/types'
+import generate from '@babel/generator'
 import type {
   ASTNode as GQLNode
 } from 'graphql'
@@ -271,5 +272,11 @@ export function transform (schemaText: string): * {
     visitor
   }))
 
-  return get(graphqlAst)
+  const ast = get(graphqlAst)
+  const { code } = generate(ast)
+
+  return {
+    ast,
+    code
+  }
 }
