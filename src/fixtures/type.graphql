@@ -37,3 +37,7 @@ type Blame {
   # The list of ranges from a Git blame.
   ranges: [BlameRange!]!
 }
+
+type Query {
+  nodeById (id: ID!): Node
+}

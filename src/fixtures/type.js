@@ -20,3 +20,7 @@ export interface AssignedEvent extends Node {
 export type Blame = {|
   ranges: Array<BlameRange>
 |}
+
+export type Query = {|
+  nodeById?: (params: { id: string }) => ?Node
+|}

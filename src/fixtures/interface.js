@@ -1,6 +1,6 @@
 
 export interface Actor {
-  avatarUrl: URI,
+  avatarUrl: (params: { size?: ?number }) => URI,
   login: string,
   resourcePath: URI,
   url: URI,

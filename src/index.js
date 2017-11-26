@@ -161,6 +161,19 @@ export function transform (schemaText: string): * {
         value = t.nullableTypeAnnotation(value)
       }
 
+      if (Array.isArray(node.arguments) && node.arguments.length > 0) {
+        const params = [
+          t.objectTypeProperty(
+            t.identifier('params'),
+            this.objectTypeHelper(node.arguments)
+          )
+        ]
+
+        const returnType = value
+
+        value = t.functionTypeAnnotation(null, params, null, returnType)
+      }
+
       return {
         ...t.objectTypeProperty(id, value),
         optional
