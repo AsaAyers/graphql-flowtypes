@@ -13,7 +13,7 @@ function run (filename) {
 
   let { code } = generate(ast, {}, '')
 
-  code = `// @flow\n\n${code}`
+  code = `// @flow\n\n${code}\n`
   fs.writeFileSync(
     filename + '.js.flow',
     code

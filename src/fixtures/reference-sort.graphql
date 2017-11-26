@@ -1,0 +1,18 @@
+
+type FooBar {
+  foo: Foo
+  bar: Bar
+}
+
+type Baz {
+  baz: String!
+}
+
+type Bar {
+  foo: Foo!
+  bar: Int
+}
+
+type Foo {
+  foo: String!
+}

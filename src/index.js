@@ -9,7 +9,7 @@ import {
   visit
 } from 'graphql'
 
-const mapToNewTree = (getSource, map, visitor) => {
+const mapToNewTree = ({ getSource, referenceMap, nodeMap, visitor }) => {
   return {
     leave (node, key, parent, path, ancestors) {
       let visitFn = visitor[node.kind]
@@ -23,13 +23,21 @@ const mapToNewTree = (getSource, map, visitor) => {
 
       if (visitFn) {
         try {
-          const newNode = visitFn.call(visitor, node, key, parent, path, ancestors)
+          const addReference = (name) => {
+            ancestors.forEach(a => {
+              const refs = (referenceMap.get(a) || [])
+              referenceMap.set(a, [...refs, name])
+            })
+          }
+
+          const newNode = visitFn.call(visitor, node, addReference)
+
           if (newNode != null) {
-            map.set(node, newNode)
+            nodeMap.set(node, newNode)
           }
         } catch (e) {
           const src = getSource(node)
-          e.message = `Error replacing node: \n${node.kind}${src}\n\n  (original error)${e.message}`
+          e.message = `Error replacing node: \n${node.kind}${src}\n\n  Original message: ${e.message}`
           throw e
         }
       }
@@ -40,7 +48,8 @@ const mapToNewTree = (getSource, map, visitor) => {
 export function transform (schemaText: string): * {
   const graphqlAst = parse(schemaText)
   type BabelNode = mixed
-  const map: WeakMap<GQLNode, BabelNode> = new WeakMap()
+  const nodeMap: WeakMap<GQLNode, BabelNode> = new WeakMap()
+  const referenceMap: WeakMap<GQLNode, Array<string>> = new WeakMap()
   const getSource = (graphqlNode) => {
     const { loc } = graphqlNode
     return (loc != null
@@ -49,8 +58,8 @@ export function transform (schemaText: string): * {
     )
   }
 
-  const get = (graphqlNode) => {
-    const replacement = map.get(graphqlNode)
+  const get = (graphqlNode: Object) => {
+    const replacement = nodeMap.get(graphqlNode)
     if (!replacement) {
       const src = getSource(graphqlNode)
 
@@ -59,17 +68,48 @@ export function transform (schemaText: string): * {
     return replacement
   }
 
-  const visitors = {
+  const visitor = {
     Document (node) {
-      const body = node.definitions
+      function buildTypeMap (map: *, node): Map<string, Object> {
+        map.set(node.name.value, node)
+        return map
+      }
+
+      const definitionMap: Map<string, Object> = node.definitions.reduce(buildTypeMap, new Map())
+      const keysByDependency: Array<string> = node.definitions.reduce((memo, node) => {
+        const name = node.name.value
+        const references = referenceMap.get(node)
+
+        if (Array.isArray(references)) {
+          references.forEach(name => {
+            if (memo.indexOf(name) === -1) {
+              memo.push(name)
+            }
+          })
+        }
+        if (memo.indexOf(name) === -1) {
+          memo.push(name)
+        }
+
+        return memo
+      }, [])
+
+      const body = keysByDependency
+        .map(key => definitionMap.get(key))
+        // @TODO: Figure out if/when unknown types should be an error. Throwing
+        // would require that this can only operate on a 100% complete
+        // self-contained schema.
+        .filter(node => node != null)
+        // $FlowFixMe
         .map(n => t.exportNamedDeclaration(get(n), []))
+
       const directives = []
 
       return t.program(
         body, directives, 'module'
       )
     },
-    Name ({ value }) {
+    Name ({ value }, references: Array<string>) {
       switch (value) {
         case 'String':
         case 'ID':
@@ -80,12 +120,18 @@ export function transform (schemaText: string): * {
           return t.identifier(value)
       }
     },
-    NamedType (node, key, parent) {
+    NamedType (node, addReference) {
+      const name = get(node.name)
+      if (name.type === 'Identifier') {
+        // $FlowFixMe
+        addReference(name.name)
+      }
+
       // NamedType doesn't need its own Babel node. It just fowards the type for
       // `.name`
-      return get(node.name)
+      return name
     },
-    ListType (node, key, parent) {
+    ListType (node) {
       let listType = get(node.type)
       if (t.isIdentifier(listType)) {
         listType = t.nullableTypeAnnotation(listType)
@@ -105,7 +151,7 @@ export function transform (schemaText: string): * {
       )
     },
     InputValueDefinition: 'FieldDefinition',
-    FieldDefinition (node, parent) {
+    FieldDefinition (node) {
       const optional = (node.type.kind !== 'NonNullType')
 
       let id = get(node.name)
@@ -205,7 +251,12 @@ export function transform (schemaText: string): * {
     }
   }
 
-  visit(graphqlAst, mapToNewTree(getSource, map, visitors))
+  visit(graphqlAst, mapToNewTree({
+    getSource,
+    referenceMap,
+    nodeMap,
+    visitor
+  }))
 
   return get(graphqlAst)
 }
