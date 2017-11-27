@@ -1,4 +1,4 @@
-export type schema = {|
+export type schema = {
   query: Query,
   mutation: Mutation,
-|}
+}

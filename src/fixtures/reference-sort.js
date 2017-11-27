@@ -1,17 +1,17 @@
-export type Foo = {|
+export type Foo = {
   foo: string,
-|}
+}
 
-export type Bar = {|
+export type Bar = {
   foo: Foo,
   bar?: ?number
-|}
+}
 
-export type FooBar = {|
+export type FooBar = {
   foo?: ?Foo,
   bar?: ?Bar
-|}
+}
 
-export type Baz = {|
+export type Baz = {
   baz: string,
-|}
+}

@@ -10,6 +10,10 @@ import {
   visit
 } from 'graphql'
 
+// I thought that types should be exact, but then I had trouble using them with
+// $Diff. Until I figure out whether I need this, I'll leave it hard coded here.
+const exact = false
+
 const mapToNewTree = ({ getSource, referenceMap, nodeMap, visitor }) => {
   return {
     leave (node, key, parent, path, ancestors) {
@@ -255,7 +259,7 @@ export function transform (schemaText: string): * {
 
       return t.typeAlias(id, null, {
         ...body,
-        exact: true
+        exact
       })
     },
     ObjectTypeDefinition (node) {
@@ -274,7 +278,7 @@ export function transform (schemaText: string): * {
 
       return t.typeAlias(id, typeParameters, {
         ...body,
-        exact: true
+        exact
       })
     },
     InterfaceTypeDefinition (node) {
@@ -293,7 +297,7 @@ export function transform (schemaText: string): * {
 
       const right = {
         ...this.objectTypeHelper(node.fields),
-        exact: true
+        exact
       }
 
       return t.typeAlias(id, typeParameters, right)

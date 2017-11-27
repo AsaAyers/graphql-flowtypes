@@ -1,8 +1,8 @@
 
-export type AcceptTopicSuggestionPayload = {|
+export type AcceptTopicSuggestionPayload = {
   clientMutationId?: ?string,
   topic: Topic,
-|}
+}
 
 export interface Node {
   id: string,
@@ -17,10 +17,10 @@ export interface AssignedEvent extends Node {
   user?: ?User,
 }
 
-export type Blame = {|
+export type Blame = {
   ranges: Array<BlameRange>
-|}
+}
 
-export type Query = {|
+export type Query = {
   nodeById?: (params: { id: string }) => ?Node
-|}
+}
