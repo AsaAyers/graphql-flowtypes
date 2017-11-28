@@ -13,13 +13,23 @@ export type ResolverBundle<Context> = {
   [string]: Resolver<Context, mixed, mixed, mixed>,
 }
 
-type LoaderTodo = {
-  tags: Array<string>
-} & $Diff<SchemaTodo, { tags: Array<SchemaTag> }>
+type Loader<Schema, Resolver, Intermediate>
+  = Intermediate & $Diff<Schema, Resolver>
 
-type LoaderTag = {
+type TodoResolver = {
+  tags: Array<SchemaTag>
+}
+
+type LoaderTodo = Loader<SchemaTodo, TodoResolver, {
+  tags: Array<string>
+}>
+
+type TagResolver = {
+  todos: Array<SchemaTodo>
+}
+type LoaderTag = Loader<SchemaTag, TagResolver, {
   todos: Array<string>
-} & $Diff<SchemaTag, { todos: Array<SchemaTodo> }>
+}>
 
 const context = {
   loadTodo (id: string): LoaderTodo {
