@@ -1,0 +1,23 @@
+// @flow
+
+export type Query = {
+  getTodo?: (params: {
+    id: string
+  }) => ?Todo,
+  getTag?: (params: {
+    id: string
+  }) => ?Tag,
+};
+export type schema = {
+  query: Query
+};
+export type Tag = {
+  id: string,
+  todos: Array<Todo>,
+};
+export type Todo = {
+  id: string,
+  text: string,
+  done: boolean,
+  tags: Array<Tag>,
+};

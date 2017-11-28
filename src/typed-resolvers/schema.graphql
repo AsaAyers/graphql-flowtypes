@@ -1,0 +1,21 @@
+schema {
+  query: Query
+}
+
+
+type Todo {
+  id: ID!
+  text: string!
+  done: boolean!
+  tags: [Tag!]!
+}
+
+type Tag {
+  id: string!
+  todos: [Todo!]!
+}
+
+type Query {
+  getTodo (id: ID!): Todo
+  getTag (id: string!): Tag
+}
